@@ -13,19 +13,7 @@ Key Features
 •	 Web Interface: Streamlit app for real-time spam detection
 •	 User Feedback System: Users can rate predictions as correct or incorrect
 •	Retraining Support: Incorporates feedback for future model improvement
-# Repository Structure
 
-Email-spam-detector-using-machine-learning-model/
-├── models/
-│   ├── spam_classifier.joblib       # Trained spam detection model
-│   └── vectorizer.joblib            # TF-IDF vectorizer
-├── spam.csv                         # Dataset (spam/ham labeled messages)
-├── streamlit_app.py                 # Streamlit web app interface
-├── train_model.py                   # Script to train and save model
-├── update_model.py                  # Script to retrain model with feedback
-├── requirements.txt                 # Required dependencies
-├── feedback_data.csv (auto-created) # User feedback storage
-└── README.md
 
 # How to Run Locally
 1.	1. Clone the repository: git clone https://github.com/Getrudetrudy01/email-spam-detector.git
@@ -34,7 +22,7 @@ Email-spam-detector-using-machine-learning-model/
 4.	4. Train the model (optional): python train_model.py
 5.	5. Run the Streamlit app: streamlit run streamlit_app.py
 6.	6. Open your browser at your specific url displayed in the terminal of your editor.
-Deployment
+# Deployment
 The app is deployed on Streamlit Cloud. To deploy your own version, push your code to GitHub, visit https://share.streamlit.io, connect your repo, and select `streamlit_app.py` as the main file.
 Example Messages
 Spam Examples:
@@ -45,19 +33,10 @@ Not Spam Examples:
 •	Hey Getrude, are we still meeting tomorrow for the project discussion?
 •	Your order has been shipped and will arrive by Friday.
 •	Please find attached the updated report for your review.
-Feedback & Retraining
+# Feedback & Retraining
 Users can rate each prediction as correct or incorrect. Feedback is stored in `feedback_data.csv`. Retrain the model later with: python update_model.py
-Model Performance
-Accuracy: ~98%, Precision: High, Recall: High, F1-score: Excellent (values depend on retraining).
-Technologies Used
-•	Python 3.10+
-•	Pandas
-•	Scikit-learn
-•	NLTK
-•	Streamlit
-•	Joblib
 
-Contributing
-Contributions are welcome! Fork the repo, create a feature branch, and submit a pull request.
-License
-This project is open-source under the MIT License.
+# Model Performance
+Accuracy: ~98%, Precision: High, Recall: High, F1-score: Excellent (values depend on retraining).
+
+
