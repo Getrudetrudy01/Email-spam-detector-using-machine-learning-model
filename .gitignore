@@ -10,5 +10,5 @@ __pycache__/
 .DS_Store
 
 # Local feedback or model files
-feedback_data.csv
-models/*.joblib
+# feedback_data.csv
+# models/*.joblib
