@@ -1,15 +1,12 @@
-# streamlit==1.32.0
-# scikit-learn==1.2.2
-# pandas==2.1.4
-# numpy==1.26.4
-# nltk==3.8.1
-
-pandas>=1.3
-scikit-learn>=1.0
-joblib>=1.2
-streamlit>=1.20
-flask>=2.0
-nltk>=3.6
-gunicorn>=20.1
-python-dotenv>=1.0
-
+# Runtime dependencies for the Streamlit app and the training scripts.
+# Pinned: models/spam_pipeline.joblib was trained with these versions, and
+# scikit-learn model files are not guaranteed to load in other versions.
+# If you change scikit-learn, retrain with: python train_model.py
+streamlit==1.39.0
+altair==5.5.0
+scikit-learn==1.5.2
+scipy==1.14.1
+numpy==2.1.3
+pandas==2.2.3
+joblib==1.4.2
+nltk==3.9.1

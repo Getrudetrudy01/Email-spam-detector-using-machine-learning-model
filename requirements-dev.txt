@@ -1,0 +1,8 @@
+# Extra dependencies for tests and for the exploratory notebook (spam.ipynb).
+-r requirements.txt
+pytest==8.3.3
+matplotlib==3.9.2
+seaborn==0.13.2
+wordcloud==1.9.4
+xgboost==2.1.2
+jupyter==1.1.1

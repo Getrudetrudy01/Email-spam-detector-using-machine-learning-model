@@ -5,10 +5,13 @@ venv/
 # Python cache
 __pycache__/
 *.pyc
+.pytest_cache/
 
 # System files
 .DS_Store
 
-# Local feedback or model files
-# feedback_data.csv
-# models/*.joblib
+# Feedback contains raw user messages, so it never goes into git
+feedback_data.csv
+
+# Backup written by train_model.py / update_model.py
+models/previous/

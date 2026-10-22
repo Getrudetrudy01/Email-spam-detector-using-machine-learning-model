@@ -1,148 +1,83 @@
 """
 update_model.py
-Retrains the spam detection model by merging original dataset (spam.csv)
-with user feedback collected in feedback_data.csv.
+Retrains the spam classifier on spam.csv plus labelled user feedback from
+feedback_data.csv, and replaces the live model only if it is at least as good.
+
+Feedback is never used for evaluation: both the current and the new model are
+scored on the same held-out split of spam.csv, so the numbers are comparable.
+
+Feedback labels come from anonymous users and are trusted as-is, so read
+feedback_data.csv before running this. A batch of deliberately wrong labels
+can still degrade the model in ways the test set does not catch.
+
+Run: python update_model.py            (promote only if spam F1 does not drop)
+     python update_model.py --force    (promote regardless)
 """
 
+import argparse
+import sys
+
 import pandas as pd
-import joblib
-import re
-from pathlib import Path
-from sklearn.model_selection import train_test_split
-from sklearn.feature_extraction.text import TfidfVectorizer, ENGLISH_STOP_WORDS
-from sklearn.naive_bayes import MultinomialNB
-from sklearn.metrics import classification_report, accuracy_score
-from datetime import datetime
 
-# ---------------------------
-# Paths
-# ---------------------------
-DATA_PATH = Path("spam.csv")
-FEEDBACK_PATH = Path("feedback_data.csv")
-MODELS_DIR = Path("models")
-MODELS_DIR.mkdir(exist_ok=True)
+import spam_core
 
-# ---------------------------
-# Text preprocessing
-# ---------------------------
-def preprocess_text(text: str) -> str:
-    text = str(text).lower()
-    text = re.sub(r'[^a-z0-9\s]', ' ', text)
-    tokens = text.split()
-    tokens = [t for t in tokens if t not in ENGLISH_STOP_WORDS]
-    try:
-        from nltk.stem import PorterStemmer
-        stemmer = PorterStemmer()
-        tokens = [stemmer.stem(t) for t in tokens]
-    except Exception:
-        tokens = [re.sub(r'(ing|ly|ed|s)$', '', t) for t in tokens]
-    return " ".join(tokens)
 
-# ---------------------------
-# Load base dataset
-# ---------------------------
-def load_spam_csv():
-    try:
-        df = pd.read_csv(DATA_PATH, encoding="utf-8")
-    except UnicodeDecodeError:
-        df = pd.read_csv(DATA_PATH, encoding="latin1")
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--force", action="store_true", help="replace the live model even if it scores worse")
+    args = parser.parse_args()
 
-    # detect columns
-    cols = [c.lower() for c in df.columns]
-    if "label" in cols and "message" in cols:
-        df = df.rename(columns={df.columns[cols.index("label")]: "label",
-                                df.columns[cols.index("message")]: "message"})
-    elif "v1" in cols and "v2" in cols:
-        df = df.rename(columns={df.columns[cols.index("v1")]: "label",
-                                df.columns[cols.index("v2")]: "message"})
-    else:
-        df = df.rename(columns={df.columns[0]: "label", df.columns[1]: "message"})
+    current_metrics = spam_core.load_metrics()
+    if current_metrics is None or not spam_core.MODEL_PATH.exists():
+        print("No trained model found. Run: python train_model.py")
+        return 1
 
-    df = df[["label", "message"]].dropna()
-    df['label'] = df['label'].astype(str).str.strip().str.lower()
-    label_map = {'spam': 1, 'ham': 0}
-    df['label_num'] = df['label'].map(label_map)
-    return df
+    print("Loading data...")
+    df = spam_core.load_dataset()
+    fingerprint = spam_core.dataset_fingerprint(df)
+    if fingerprint != current_metrics.get("dataset_fingerprint"):
+        print("spam.csv has changed since the live model was trained, so the test sets differ.")
+        print("Run python train_model.py to retrain from scratch instead.")
+        return 1
 
-# ---------------------------
-# Merge feedback dataset
-# ---------------------------
-def load_feedback_data():
-    if not FEEDBACK_PATH.exists():
-        print(" No feedback data found. Using only the original dataset.")
-        return pd.DataFrame()
+    train, test = spam_core.split_dataset(df)
+    feedback = spam_core.load_feedback()
+    # Drop feedback that duplicates a test message (it would leak into evaluation)
+    # or a training message (the dataset label wins).
+    feedback = feedback[~feedback["message"].isin(df["message"])]
+    if feedback.empty:
+        print("No new labelled feedback to learn from. Nothing to do.")
+        return 0
+    print(f"Adding {len(feedback)} feedback examples ({feedback['label'].sum()} spam) to {len(train)} training messages.")
 
-    feedback = pd.read_csv(FEEDBACK_PATH)
-    feedback = feedback.dropna(subset=['message', 'predicted_label'])
-    feedback['label_num'] = feedback['predicted_label'].map({'spam': 1, 'ham': 0})
-    
-    # Only keep confirmed feedback if available
-    confirmed = feedback[feedback['feedback'].isin(['correct', 'incorrect'])]
-    if not confirmed.empty:
-        confirmed['label_num'] = confirmed.apply(
-            lambda x: x['label_num'] if x['feedback'] == 'correct' else (1 - x['label_num']),
-            axis=1
-        )
-        return confirmed[['message', 'label_num']]
-    else:
-        print(" No confirmed feedback found. Using only the original dataset.")
-        return pd.DataFrame()
+    combined = pd.concat([train, feedback], ignore_index=True)
+    model_name = current_metrics["model"]
+    pipeline = spam_core.build_pipeline(model_name)
+    pipeline.fit(combined["message"].tolist(), combined["label"])
+    new_metrics = spam_core.evaluate(pipeline, test)
 
-# ---------------------------
-# Main retraining logic
-# ---------------------------
-print(" Loading data...")
-base_df = load_spam_csv()
-feedback_df = load_feedback_data()
+    # Score the live model now rather than trusting metrics.json, in case it was edited.
+    old_metrics = spam_core.evaluate(spam_core.load_model(), test)
+    print(f"{'metric':<20}{'current':>10}{'new':>10}")
+    for key in ("spam_precision", "spam_recall", "spam_f1", "average_precision", "accuracy"):
+        print(f"{key:<20}{old_metrics[key]:>10.4f}{new_metrics[key]:>10.4f}")
 
-# Combine datasets
-if not feedback_df.empty:
-    combined_df = pd.concat([
-        base_df[['message', 'label_num']],
-        feedback_df[['message', 'label_num']]
-    ], ignore_index=True)
-else:
-    combined_df = base_df[['message', 'label_num']]
+    if new_metrics["spam_f1"] < old_metrics["spam_f1"] and not args.force:
+        print("New model has lower spam F1. Keeping the current model (use --force to override).")
+        return 1
 
-print(f" Total training samples: {len(combined_df)}")
+    spam_core.save_model(pipeline, {
+        "model": model_name,
+        "cv_spam_f1": current_metrics.get("cv_spam_f1"),
+        "dataset_fingerprint": fingerprint,
+        "n_train": len(combined),
+        "n_test": len(test),
+        "n_feedback": len(feedback),
+        **new_metrics,
+    })
+    print("Promoted the new model. The previous one is in models/previous/.")
+    return 0
 
-# Preprocess
-combined_df['message_clean'] = combined_df['message'].apply(preprocess_text)
 
-# Split
-X_train, X_test, y_train, y_test = train_test_split(
-    combined_df['message_clean'], combined_df['label_num'], 
-    test_size=0.2, random_state=42, stratify=combined_df['label_num']
-)
-
-# Vectorize
-vectorizer = TfidfVectorizer(ngram_range=(1, 2), min_df=2, max_df=0.9)
-X_train_tfidf = vectorizer.fit_transform(X_train)
-X_test_tfidf = vectorizer.transform(X_test)
-
-# Train model
-print(" Training model...")
-model = MultinomialNB()
-model.fit(X_train_tfidf, y_train)
-
-# Evaluate
-y_pred = model.predict(X_test_tfidf)
-acc = accuracy_score(y_test, y_pred)
-print(f" Model retrained successfully. Accuracy: {acc:.4f}")
-print(classification_report(y_test, y_pred, digits=4))
-
-# Save new model and vectorizer
-timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-model_path = MODELS_DIR / f"spam_classifier_{timestamp}.joblib"
-vect_path = MODELS_DIR / f"vectorizer_{timestamp}.joblib"
-
-joblib.dump(model, model_path, compress=3)
-joblib.dump(vectorizer, vect_path, compress=3)
-
-# Optionally overwrite the "active" model for Streamlit
-joblib.dump(model, MODELS_DIR / "spam_classifier.joblib", compress=3)
-joblib.dump(vectorizer, MODELS_DIR / "vectorizer.joblib", compress=3)
-
-print(f" Saved new model: {model_path.name}")
-print(f" Saved new vectorizer: {vect_path.name}")
-print(" Retraining complete.")
+if __name__ == "__main__":
+    sys.exit(main())
