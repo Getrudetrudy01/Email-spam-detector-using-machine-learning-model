@@ -2,6 +2,8 @@
 A machine learning web app that detects whether a message is Spam or Not Spam, built using Python, Scikit-learn, and Streamlit.
  Live Demo: Try it here https://email-spam-detector-ml-project.streamlit.app/
 
+📄 **[Read the case study](CASE_STUDY.md):** what a review of this project uncovered, including a model that was saved untrained, test data leaking into training, and a shortcut the model learned from the dataset.
+
 # Project Overview
 Spam messages (junk mail) are unsolicited communications often containing scams, phishing attempts, or misleading information. This project demonstrates how Natural Language Processing (NLP) and Machine Learning can be used to automatically classify messages as Spam or Not Spam (Ham).
 
@@ -16,6 +18,8 @@ The model is trained on the [UCI SMS Spam Collection](https://archive.ics.uci.ed
 •	 Explained Predictions: every word in the message is highlighted by how much it pushed the verdict towards spam or not spam
 •	 Adjustable Threshold: a slider shows, live, how many spam messages are caught and how many real messages are wrongly flagged at each setting
 •	 Honest Error Analysis: a "How well it works" page lists every test message the model gets wrong, shows how confident it is, and points out a shortcut it learned from the dataset
+•	 Try to Fool It: a challenge page where visitors rewrite real spam to sneak it past the detector, and see whether a second model catches it
+•	 Second Opinion Model: a model that reads letter patterns instead of words, so disguised spelling like "fr33 pr1ze" is still recognised
 •	 Web Interface: Streamlit app for real-time spam detection, with one-click example messages
 •	 User Feedback System: Users can mark predictions as correct or incorrect
 •	 Safe Retraining: Feedback is added to training data, and the new model only replaces the current one if it scores at least as well
@@ -25,12 +29,14 @@ The model is trained on the [UCI SMS Spam Collection](https://archive.ics.uci.ed
 |---|---|
 | `streamlit_app.py` | The web app's entry point and page navigation |
 | `views/check_message.py` | Page 1: check a message and see why |
-| `views/model_report.py` | Page 2: test results, the words the model relies on, and its mistakes |
+| `views/fool_it.py` | Page 2: the "Try to fool it" challenge |
+| `views/model_report.py` | Page 3: test results, the words the model relies on, disguised spam, and its mistakes |
 | `app_ui.py` | Shared app pieces: model loading, threshold slider, highlighting and styles |
+| `CASE_STUDY.md` | Write-up of the review, the fixes and the findings |
 | `spam_core.py` | Shared code: data loading, preprocessing, model, metrics, feedback |
-| `train_model.py` | Trains the model from `spam.csv` |
-| `update_model.py` | Retrains with user feedback and promotes the model only if it is not worse |
-| `models/` | The trained pipeline (`spam_pipeline.joblib`) and its `metrics.json` |
+| `train_model.py` | Trains the word model and the letter-pattern model from `spam.csv` |
+| `update_model.py` | Retrains the word model with user feedback and promotes it only if it is not worse |
+| `models/` | The word model (`spam_pipeline.joblib`), the letter-pattern model (`char_pipeline.joblib`) and `metrics.json` |
 | `spam.ipynb` | Exploratory analysis and comparison of 11 classifiers |
 | `tests/` | Tests for the shared code and the app |
 
@@ -73,14 +79,16 @@ Feedback comes from anonymous users, so review `feedback_data.csv` before retrai
 # Model Performance
 Results on a held-out test set of 1,032 messages (20% of 5,158 unique messages), with a 0.5 spam threshold:
 
-| Metric | Score |
-|---|---|
-| Spam precision | 97.4% |
-| Spam recall | 89.1% |
-| Spam F1 | 93.1% |
-| Average precision | 97.0% |
-| Accuracy | 98.4% |
+| Metric | Word model (main verdict) | Letter-pattern model (second opinion) |
+|---|---|---|
+| Spam precision | 97.4% | 100% |
+| Spam recall | 89.1% | 93.8% |
+| Spam F1 | 93.1% | 96.8% |
+| Accuracy | 98.4% | 99.2% |
+| Disguised spam caught | 78% | 86% |
 
-Out of 128 spam messages in the test set, 114 were caught and 14 were missed. Out of 904 normal messages, 3 were wrongly flagged as spam.
+For the word model: out of 128 spam messages in the test set, 114 were caught and 14 were missed. Out of 904 normal messages, 3 were wrongly flagged as spam.
+
+"Disguised spam" is every test spam message rewritten automatically with look-alike numbers and broken-up words ("fr33", "c.l.a.i.m"). The letter-pattern model is more accurate, but the word model gives the main verdict because its reasons are words a person can read. The [case study](CASE_STUDY.md) explains the trade-off.
 
 Accuracy looks high partly because 87% of messages are not spam: a model that always answered "not spam" would already score 87%. Spam recall and precision are the more useful numbers. The current figures are always in `models/metrics.json`.

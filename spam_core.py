@@ -9,6 +9,7 @@ the dataset, preprocessing, model files or feedback lives here.
 import csv
 import hashlib
 import json
+import random
 import re
 import shutil
 from datetime import datetime, timezone
@@ -41,6 +42,7 @@ DATA_PATH = ROOT / "spam.csv"
 FEEDBACK_PATH = ROOT / "feedback_data.csv"
 MODELS_DIR = ROOT / "models"
 MODEL_PATH = MODELS_DIR / "spam_pipeline.joblib"
+CHAR_MODEL_PATH = MODELS_DIR / "char_pipeline.joblib"
 METRICS_PATH = MODELS_DIR / "metrics.json"
 PREVIOUS_DIR = MODELS_DIR / "previous"
 
@@ -112,14 +114,23 @@ def dataset_fingerprint(df: pd.DataFrame) -> str:
 # ---------------------------
 CANDIDATES = {
     "multinomial_nb": lambda: MultinomialNB(alpha=0.1),
-    "logistic_regression": lambda: LogisticRegression(C=10, class_weight="balanced", max_iter=2000),
+    "logistic_regression": lambda: LogisticRegression(C=10, class_weight="balanced", max_iter=3000),
+}
+
+# Two ways of turning text into features:
+# - word: stemmed words and word pairs. Easy to explain, so it gives the main verdict.
+# - char: 2-5 letter fragments within words. Harder to explain, but it still
+#   recognises "fr33 pr1ze" as close to "free prize".
+VECTORIZERS = {
+    "word": lambda: TfidfVectorizer(preprocessor=preprocess_text, ngram_range=(1, 2), min_df=2, max_df=0.9, sublinear_tf=True),
+    "char": lambda: TfidfVectorizer(analyzer="char_wb", ngram_range=(2, 5), min_df=2, sublinear_tf=True),
 }
 
 
-def build_pipeline(model_name: str) -> Pipeline:
+def build_pipeline(model_name: str, features: str = "word") -> Pipeline:
     """TF-IDF + classifier, with sigmoid calibration so predict_proba is meaningful."""
     return Pipeline([
-        ("tfidf", TfidfVectorizer(preprocessor=preprocess_text, ngram_range=(1, 2), min_df=2, max_df=0.9, sublinear_tf=True)),
+        ("tfidf", VECTORIZERS[features]()),
         ("clf", CalibratedClassifierCV(CANDIDATES[model_name](), method="sigmoid", cv=5)),
     ])
 
@@ -224,14 +235,44 @@ def explain(pipeline: Pipeline, text: str, weights: dict[str, float] | None = No
     return segments
 
 
-def save_model(pipeline: Pipeline, metrics: dict) -> None:
-    """Save the pipeline and its metrics, keeping the current pair in models/previous/."""
+# ---------------------------
+# Disguised spam
+# ---------------------------
+_LEET = {"a": "4", "e": "3", "i": "1", "o": "0", "s": "5", "t": "7"}
+
+
+def disguise(text: str, seed: int = 0) -> str:
+    """Rewrite text the way spammers dodge filters: digits for letters
+    ("fr33"), dotted words ("c.l.a.i.m") and spaced-out words ("n o w").
+    Deterministic for a given seed, so results are repeatable."""
+    rng = random.Random(seed)
+
+    def rewrite(match):
+        word = match.group()
+        roll = rng.random()
+        if len(word) < 3 or roll >= 0.8:
+            return word
+        if roll < 0.45:
+            return "".join(_LEET.get(c.lower(), c) if rng.random() < 0.6 else c for c in word)
+        return (".", " ")[roll >= 0.65].join(word)
+
+    return re.sub(r"[A-Za-z]+", rewrite, text)
+
+
+def disguised_spam_recall(pipeline: Pipeline, test: pd.DataFrame) -> float:
+    """Share of the test spam still caught after every message is disguised."""
+    spam = test.loc[test["label"] == 1, "message"]
+    disguised = [disguise(message, seed) for seed, message in enumerate(spam)]
+    return round(float((pipeline.predict_proba(disguised)[:, 1] >= THRESHOLD).mean()), 4)
+
+
+def save_model(pipeline: Pipeline, metrics: dict, char_pipeline: Pipeline | None = None) -> None:
+    """Save the pipeline(s) and metrics, keeping the current files in models/previous/."""
     MODELS_DIR.mkdir(exist_ok=True)
-    if MODEL_PATH.exists():
-        PREVIOUS_DIR.mkdir(exist_ok=True)
-        shutil.copy2(MODEL_PATH, PREVIOUS_DIR / MODEL_PATH.name)
-        if METRICS_PATH.exists():
-            shutil.copy2(METRICS_PATH, PREVIOUS_DIR / METRICS_PATH.name)
+    for path in (MODEL_PATH, CHAR_MODEL_PATH, METRICS_PATH):
+        if path.exists():
+            PREVIOUS_DIR.mkdir(exist_ok=True)
+            shutil.copy2(path, PREVIOUS_DIR / path.name)
 
     metrics = {
         **metrics,
@@ -239,11 +280,17 @@ def save_model(pipeline: Pipeline, metrics: dict) -> None:
         "sklearn_version": sklearn.__version__,
     }
     joblib.dump(pipeline, MODEL_PATH, compress=3)
+    if char_pipeline is not None:
+        joblib.dump(char_pipeline, CHAR_MODEL_PATH, compress=3)
     METRICS_PATH.write_text(json.dumps(metrics, indent=2), encoding="utf-8")
 
 
 def load_model() -> Pipeline:
     return joblib.load(MODEL_PATH)
+
+
+def load_char_model() -> Pipeline:
+    return joblib.load(CHAR_MODEL_PATH)
 
 
 def load_metrics() -> dict | None:

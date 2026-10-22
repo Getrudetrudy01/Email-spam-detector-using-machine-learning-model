@@ -66,9 +66,12 @@ def main() -> int:
         print("New model has lower spam F1. Keeping the current model (use --force to override).")
         return 1
 
+    # Only the word model learns from feedback; the char model and its metrics stay as they are.
     spam_core.save_model(pipeline, {
         "model": model_name,
         "cv_spam_f1": current_metrics.get("cv_spam_f1"),
+        "disguised_spam_recall": spam_core.disguised_spam_recall(pipeline, test),
+        "char": current_metrics.get("char"),
         "dataset_fingerprint": fingerprint,
         "n_train": len(combined),
         "n_test": len(test),

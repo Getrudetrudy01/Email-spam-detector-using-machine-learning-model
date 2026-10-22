@@ -87,6 +87,21 @@ def test_rates_at():
     assert r["recall"] == 0.5 and r["precision"] == 0.5 and r["false_alarm_rate"] == 0.5
 
 
+def test_disguise_is_repeatable_and_keeps_numbers():
+    text = "Claim your free prize now, call 09061701461"
+    assert spam_core.disguise(text, 3) == spam_core.disguise(text, 3)
+    assert spam_core.disguise(text, 3) != text
+    assert "09061701461" in spam_core.disguise(text, 3)
+
+
+@pytest.mark.skipif(not spam_core.CHAR_MODEL_PATH.exists(), reason="run train_model.py first")
+def test_char_model_sees_through_disguised_spelling():
+    disguised = "W1NN3R!! You have been s3lected to rec3ive a £900 pr1ze r3ward. To cl41m c4ll 09061701461."
+    word, char = spam_core.load_model(), spam_core.load_char_model()
+    assert spam_core.spam_probability(char, [disguised])[0] > spam_core.THRESHOLD
+    assert spam_core.spam_probability(word, [disguised])[0] < spam_core.THRESHOLD
+
+
 @pytest.mark.skipif(not spam_core.MODEL_PATH.exists(), reason="run train_model.py first")
 def test_saved_metrics_match_saved_model():
     test = spam_core.split_dataset(spam_core.load_dataset())[1]

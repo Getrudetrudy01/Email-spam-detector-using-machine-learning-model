@@ -19,18 +19,6 @@ SPAM_RGB = "235, 104, 52"
 
 CSS = f"""
 <style>
-/* Streamlit's accent is red, which reads as "spam" next to the orange that
-   means spam here. Its colour is baked into generated classes and changes
-   with widget state, so shift the hue of the accented widgets instead: reds
-   become violet, greys and text are untouched, and both themes keep working. */
-[data-testid="stBaseButton-primary"],
-[data-testid="stBaseButton-secondary"]:hover,
-[data-testid="stSlider"] [data-baseweb="slider"],
-[data-baseweb="tab"][aria-selected="true"],
-[data-baseweb="tab-highlight"] {{
-  filter: hue-rotate(255deg);
-}}
-
 .specimen {{
   font-family: 'Source Code Pro', ui-monospace, monospace;
   font-size: 0.95rem;
@@ -46,7 +34,7 @@ CSS = f"""
 .specimen .w-spam {{ border-bottom: 2px solid {SPAM_COLOR}; }}
 .specimen .w-ham {{ border-bottom: 2px dotted {HAM_COLOR}; }}
 
-.key {{ font-size: 0.85rem; opacity: 0.85; display: flex; gap: 1.25rem; flex-wrap: wrap; }}
+.key {{ font-size: 0.85rem; opacity: 0.9; display: flex; gap: 0.4rem 1.1rem; flex-wrap: wrap; margin-bottom: 0.75rem; }}
 .key span span {{ padding: 0 0.3em; border-radius: 3px; }}
 
 .verdict {{ display: flex; align-items: baseline; gap: 0.75rem; flex-wrap: wrap; margin: 0.5rem 0 0.25rem; }}
@@ -62,13 +50,17 @@ CSS = f"""
 .meter-dot {{ position: absolute; top: 0.6rem; width: 14px; height: 14px; margin-left: -7px; border-radius: 50%;
   border: 2px solid var(--background-color, #fff); box-sizing: border-box; }}
 .meter-tick {{ position: absolute; top: 0.45rem; width: 2px; height: 1.1rem; margin-left: -1px; background: currentColor; opacity: 0.7; }}
-.meter-label {{ position: absolute; top: 1.65rem; font-size: 0.75rem; opacity: 0.75; transform: translateX(-50%); white-space: nowrap; }}
-.meter-end {{ position: absolute; top: 1.65rem; font-size: 0.75rem; opacity: 0.5; }}
+.meter-label {{ position: absolute; top: 1.6rem; font-size: 0.82rem; opacity: 0.9; transform: translateX(-50%); white-space: nowrap; }}
+.meter-end {{ position: absolute; top: 1.6rem; font-size: 0.82rem; opacity: 0.75; }}
 
 .chips {{ display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; font-size: 0.9rem; margin: 0.2rem 0; }}
 .chip {{ font-family: 'Source Code Pro', ui-monospace, monospace; font-size: 0.85rem; padding: 0.05rem 0.45rem; border-radius: 3px; }}
 .chip-spam {{ background: rgba({SPAM_RGB}, 0.25); }}
 .chip-ham {{ background: rgba({HAM_RGB}, 0.22); }}
+.card {{ border: 1px solid rgba(128, 128, 128, 0.35); border-radius: 6px; padding: 0.8rem 1rem 0.1rem; margin-bottom: 0.75rem; }}
+.card-title {{ font-weight: 700; }}
+.card-sub {{ font-size: 0.85rem; opacity: 0.75; }}
+.second-opinion {{ font-size: 0.9rem; opacity: 0.85; margin: -0.5rem 0 1rem; }}
 </style>
 """
 
@@ -83,6 +75,11 @@ def load_artifacts():
 
 
 @st.cache_resource
+def load_char_model():
+    return spam_core.load_char_model()
+
+
+@st.cache_resource(show_spinner="Scoring the test messages...")
 def load_test_predictions():
     return spam_core.test_predictions(load_artifacts()[0])
 
@@ -155,9 +152,9 @@ def highlighted_message(segments, scale: float = 2.0) -> str:
 def highlight_key() -> str:
     return (
         '<div class="key">'
-        f'<span><span style="background: rgba({SPAM_RGB}, 0.45); border-bottom: 2px solid {SPAM_COLOR}">word</span> pushes towards spam</span>'
-        f'<span><span style="background: rgba({HAM_RGB}, 0.4); border-bottom: 2px dotted {HAM_COLOR}">word</span> pushes towards not spam</span>'
-        '<span>Stronger colour = bigger effect. Plain words were ignored.</span>'
+        f'<span><span style="background: rgba({SPAM_RGB}, 0.45); border-bottom: 2px solid {SPAM_COLOR}">word</span> towards spam</span>'
+        f'<span><span style="background: rgba({HAM_RGB}, 0.4); border-bottom: 2px dotted {HAM_COLOR}">word</span> towards not spam</span>'
+        '<span>Darker = bigger effect</span>'
         '</div>'
     )
 

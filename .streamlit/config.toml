@@ -1,0 +1,8 @@
+# Violet for buttons, sliders and tabs, so the accent never competes with the
+# blue (not spam) and orange (spam) that carry meaning in the app.
+# Separate light and dark sections keep automatic dark mode working.
+[theme.light]
+primaryColor = "#6250d6"
+
+[theme.dark]
+primaryColor = "#7262e0"

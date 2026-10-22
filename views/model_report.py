@@ -1,3 +1,5 @@
+import html
+
 import altair as alt
 import pandas as pd
 import streamlit as st
@@ -47,13 +49,8 @@ def score_chart(df: pd.DataFrame, title: str, color: str) -> alt.LayerChart:
 
 ham = predictions[predictions["label"] == 0]
 spam = predictions[predictions["label"] == 1]
-st.altair_chart(
-    alt.vconcat(
-        score_chart(spam, f"Spam ({len(spam)})", app_ui.SPAM_COLOR),
-        score_chart(ham, f"Normal messages ({len(ham)})", app_ui.HAM_COLOR),
-    ),
-    use_container_width=True,
-)
+st.altair_chart(score_chart(spam, f"Spam ({len(spam)})", app_ui.SPAM_COLOR), width="stretch", height=200)
+st.altair_chart(score_chart(ham, f"Normal messages ({len(ham)})", app_ui.HAM_COLOR), width="stretch", height=200)
 st.caption("Most messages sit at the far ends, so the threshold only matters for the few in the middle.")
 
 # ---------------------------
@@ -74,7 +71,7 @@ st.altair_chart(
                         range=[app_ui.SPAM_COLOR, app_ui.HAM_COLOR]), legend=alt.Legend(title=None, orient="top")),
         tooltip=["word", alt.Tooltip("weight:Q", format="+.2f", title="Weight"), "direction"],
     ).properties(height=520),
-    use_container_width=True,
+    width="stretch",
 )
 st.info(
     "**A shortcut it learned:** *lt* and *gt* are among the strongest signs of a normal message. "
@@ -85,6 +82,34 @@ st.info(
 )
 
 # ---------------------------
+# Disguised spam
+# ---------------------------
+st.subheader("Disguised spam")
+# Skip messages with the dataset's garbled pound signs ("å£"), which would look like a display bug.
+example = next(m for m in spam["message"] if "prize" in m.lower() and m.isascii())
+st.write(
+    "Spammers misspell words on purpose to slip past filters. To test this, every spam message in the "
+    "test set was rewritten automatically, swapping in look-alike numbers and breaking words up, "
+    "then run through both models. For example:"
+)
+st.markdown(f'<div class="specimen">{html.escape(spam_core.disguise(example, 0))}</div>', unsafe_allow_html=True)
+
+char = metrics["char"]
+st.markdown(f"""
+| At a 50% threshold | Main detector (reads words) | Second opinion (reads letter patterns) |
+|---|---|---|
+| Spam F1 on the normal test set | {metrics["spam_f1"]:.1%} | {char["spam_f1"]:.1%} |
+| Real messages flagged | {metrics["confusion_matrix"][0][1]} of {len(ham)} | {char["confusion_matrix"][0][1]} of {len(ham)} |
+| **Disguised spam caught** | **{metrics["disguised_spam_recall"]:.0%}** | **{char["disguised_spam_recall"]:.0%}** |
+""")
+st.write(
+    "The letter-pattern model still recognises *pr1ze* because it shares fragments like *pr* and *ze* "
+    "with *prize*. It is more accurate overall, so why isn't it the main detector? Its reasons are "
+    "letter fragments, which explain nothing to a person. The app uses the word model for the verdict "
+    "you can read, and shows the letter-pattern model as a second opinion."
+)
+
+# ---------------------------
 # Mistakes
 # ---------------------------
 st.subheader("What it gets wrong")
@@ -92,17 +117,25 @@ missed = spam[spam["spam_prob"] < threshold].sort_values("spam_prob")
 false_alarms = ham[ham["spam_prob"] >= threshold].sort_values("spam_prob", ascending=False)
 
 
+SHOWN = 3
+
+
 def show_messages(df: pd.DataFrame, empty: str) -> None:
     if df.empty:
         st.write(empty)
         return
     st.markdown(app_ui.highlight_key(), unsafe_allow_html=True)
-    for message, prob in zip(df["message"].head(20), df["spam_prob"].head(20)):
-        st.markdown(f"**{prob:.0%}** spam probability" +
-                    app_ui.highlighted_message(spam_core.explain(model, message, weights)),
-                    unsafe_allow_html=True)
-    if len(df) > 20:
-        st.caption(f"Showing 20 of {len(df)}.")
+
+    def show(rows):
+        for message, prob in zip(rows["message"], rows["spam_prob"]):
+            st.markdown(f"**{prob:.0%}** spam probability" +
+                        app_ui.highlighted_message(spam_core.explain(model, message, weights)),
+                        unsafe_allow_html=True)
+
+    show(df.head(SHOWN))
+    if len(df) > SHOWN:
+        with st.expander(f"Show {len(df) - SHOWN} more"):
+            show(df.iloc[SHOWN:])
 
 
 tab_missed, tab_flagged = st.tabs([f"Missed spam ({len(missed)})", f"Real messages flagged ({len(false_alarms)})"])
@@ -123,8 +156,9 @@ st.markdown(f"""
   barely existed in the training data.
 - **It reads words, not meaning.** Spam written with ordinary, friendly words gets through, and a real
   message full of words like *free*, *win* or *claim* can be flagged.
-- **Disguised spelling is a weak spot.** "FR33 PR1ZE" is not in the vocabulary, so the model only
-  catches it if other words give it away.
+- **Disguised spelling is a weak spot for the main detector.** "FR33 PR1ZE" is not in its vocabulary,
+  so it only catches it if other words give it away. The second opinion catches more (see above), but
+  not all of it.
 - **The test set has only {len(spam)} spam messages,** so each missed one moves recall by almost a percentage point.
 """)
 
