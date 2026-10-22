@@ -8,7 +8,7 @@ I built the first version of this project during a data science internship in 20
 
 **1. The saved model had never been trained.** The original app loaded `model1.pkl`, a 153-byte file. A trained Naive Bayes model stores learned word statistics and is far larger. The notebook re-created the model object (`mnb = MultinomialNB()`) for a voting ensemble just before pickling it, and the ensemble trains its own copies, so what got saved was an empty shell. That app would have crashed on its first prediction.
 
-**2. The test set leaked into training.** The dataset has 403 duplicate messages out of 5,572 (7%). The training script never removed them, so the same message could appear in both the training and the test set, and the model was partly graded on messages it had memorised. The notebook also fitted its TF-IDF vocabulary on all the data before splitting it.
+**2. The test set leaked into training.** The dataset has 414 duplicate messages out of 5,572 (7%), counting ones that differ only by extra spaces. The training script never removed them, so the same message could appear in both the training and the test set, and the model was partly graded on messages it had memorised. The notebook also fitted its TF-IDF vocabulary on all the data before splitting it.
 
 **3. Accuracy was the wrong number to report.** 87% of the messages are not spam, so a model that never flags anything already scores 87%. What matters is how much spam gets caught (recall) and how often a flagged message really is spam (precision).
 

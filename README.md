@@ -1,94 +1,125 @@
-# Email / SMS Spam Detector
-A machine learning web app that detects whether a message is Spam or Not Spam, built using Python, Scikit-learn, and Streamlit.
- Live Demo: Try it here https://email-spam-detector-ml-project.streamlit.app/
+# Spam Detector That Shows Its Reasoning
 
-📄 **[Read the case study](CASE_STUDY.md):** what a review of this project uncovered, including a model that was saved untrained, test data leaking into training, and a shortcut the model learned from the dataset.
+A spam filter that highlights the words behind every verdict, is upfront about its mistakes, and challenges you to sneak spam past it.
 
-# Project Overview
-Spam messages (junk mail) are unsolicited communications often containing scams, phishing attempts, or misleading information. This project demonstrates how Natural Language Processing (NLP) and Machine Learning can be used to automatically classify messages as Spam or Not Spam (Ham).
+[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://email-spam-detector-ml-project.streamlit.app/)
+![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-3776AB)
+![scikit-learn 1.5](https://img.shields.io/badge/scikit--learn-1.5-F7931E)
+![Streamlit 1.62](https://img.shields.io/badge/streamlit-1.62-FF4B4B)
 
-The model is trained on the [UCI SMS Spam Collection](https://archive.ics.uci.edu/dataset/228/sms+spam+collection), so it works best on short, SMS-style messages. Long modern emails and phishing messages look quite different and may be misclassified.
+**[Try the live app](https://email-spam-detector-ml-project.streamlit.app/)** · **[Read the case study](CASE_STUDY.md)**
 
-# Key Features
-•	 Data Preprocessing: Cleans text (lowercasing, punctuation and stopword removal, stemming) and removes duplicate messages
-•	 Feature Extraction: TF-IDF on words and word pairs
-•	 Model Selection: Multinomial Naive Bayes vs Logistic Regression, chosen by 5-fold cross-validation
-•	 Calibrated Probabilities: the "spam probability" shown in the app is calibrated, not a raw model score
-•	 Evaluation Metrics: Spam precision, recall, F1, average precision and accuracy on a held-out test set, saved to `models/metrics.json`
-•	 Explained Predictions: every word in the message is highlighted by how much it pushed the verdict towards spam or not spam
-•	 Adjustable Threshold: a slider shows, live, how many spam messages are caught and how many real messages are wrongly flagged at each setting
-•	 Honest Error Analysis: a "How well it works" page lists every test message the model gets wrong, shows how confident it is, and points out a shortcut it learned from the dataset
-•	 Try to Fool It: a challenge page where visitors rewrite real spam to sneak it past the detector, and see whether a second model catches it
-•	 Second Opinion Model: a model that reads letter patterns instead of words, so disguised spelling like "fr33 pr1ze" is still recognised
-•	 Web Interface: Streamlit app for real-time spam detection, with one-click example messages
-•	 User Feedback System: Users can mark predictions as correct or incorrect
-•	 Safe Retraining: Feedback is added to training data, and the new model only replaces the current one if it scores at least as well
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/check-dark.png">
+  <img src="docs/images/check-light.png" alt="The app marking a prize scam as spam, with the words WINNER, prize, claim and reward highlighted in orange because they pushed the verdict towards spam" width="720">
+</picture>
 
-# Project Structure
-| File | Purpose |
-|---|---|
-| `streamlit_app.py` | The web app's entry point and page navigation |
-| `views/check_message.py` | Page 1: check a message and see why |
-| `views/fool_it.py` | Page 2: the "Try to fool it" challenge |
-| `views/model_report.py` | Page 3: test results, the words the model relies on, disguised spam, and its mistakes |
-| `app_ui.py` | Shared app pieces: model loading, threshold slider, highlighting and styles |
-| `CASE_STUDY.md` | Write-up of the review, the fixes and the findings |
-| `spam_core.py` | Shared code: data loading, preprocessing, model, metrics, feedback |
-| `train_model.py` | Trains the word model and the letter-pattern model from `spam.csv` |
-| `update_model.py` | Retrains the word model with user feedback and promotes it only if it is not worse |
-| `models/` | The word model (`spam_pipeline.joblib`), the letter-pattern model (`char_pipeline.joblib`) and `metrics.json` |
-| `spam.ipynb` | Exploratory analysis and comparison of 11 classifiers |
-| `tests/` | Tests for the shared code and the app |
+## What makes it different
 
-# How to Run Locally
-1.	 Clone the repository: git clone https://github.com/Getrudetrudy01/Email-spam-detector-using-machine-learning-model.git && cd Email-spam-detector-using-machine-learning-model
-2.	 Create and activate a virtual environment: py -m venv .venv && .venv\Scripts\activate
-3.	 Install dependencies: pip install -r requirements.txt
-4.	 Train the model (optional, a trained model is included): python train_model.py
-5.	 Run the Streamlit app: streamlit run streamlit_app.py
-6.	 Open your browser at your specific url displayed in the terminal of your editor.
+Most spam detectors stop at "TF-IDF + Naive Bayes, 98% accuracy". This one started there too, as an internship project, and was then audited and rebuilt.
 
-To run the tests or the notebook, also install the development dependencies: pip install -r requirements-dev.txt, then run: pytest
+- **It explains every verdict.** Each word is highlighted by how much it pushed the message towards spam (orange) or not spam (blue).
+- **It reports honest numbers.** The original "98% accuracy" was measured with test messages leaking into training, and it hid that 1 in 9 spam messages got through. The rebuilt app reports what matters: how much spam is caught and how often real messages get flagged.
+- **It shows its own mistakes.** A report page lists every test message the model gets wrong, and points out a shortcut it learned from quirks in the dataset.
+- **You can try to beat it.** The *Try to fool it* page challenges you to rewrite real spam so it slips through, while a second model that reads letter patterns tries to catch you.
 
-Dependency versions are pinned in `requirements.txt` because a saved scikit-learn model is only guaranteed to load with the version that trained it. If you upgrade scikit-learn, retrain with `python train_model.py`.
+The [case study](CASE_STUDY.md) tells the full story: a saved model that had never been trained, duplicate messages leaking between training and test data, a feedback button that never saved anything, and what fixing them revealed.
 
-# Deployment
-The app is deployed on Streamlit Cloud. To deploy your own version, push your code to GitHub, visit https://share.streamlit.io, connect your repo, and select `streamlit_app.py` as the main file.
+## Try to fool it
 
-Note: Streamlit Cloud does not keep files between restarts, so feedback saved by the deployed app is lost when it restarts. To keep feedback from the live app, store it somewhere persistent such as a database or Google Sheet.
+Rewrite a scam message so the detector misses it, but keep the phone number, or it doesn't count. Two models judge every attempt:
 
-# Example Messages
-# Spam Examples:
-•	Congratulations! You’ve been selected to win a free iPhone. Click here to claim your prize!
-•	You have won $5000 cash! Reply WIN to receive your reward.
-•	Get cheap loans instantly! Apply now.
-# Not Spam Examples:
-•	Hey Getrude, are we still meeting tomorrow for the project discussion?
-•	Your order has been shipped and will arrive by Friday.
-•	Please find attached the updated report for your review.
+<img src="docs/images/fool-it.gif" alt="Three attempts at the prize scam: the original is caught by both models; with digits swapped in for letters it fools the main detector but the second opinion catches it; rewritten as a friendly text it fools both" width="640">
 
-# Feedback & Retraining
-Users can mark each prediction as correct or incorrect. Only messages that receive feedback are stored, in `feedback_data.csv`, which is kept out of git because it contains what users typed.
+Swapping in look-alike digits ("pr1ze") gets past the word model, because "pr1ze" isn't a word it knows. The letter-pattern model still sees fragments of "prize" and catches it. Rewording the scam to sound like a friend fools both, because neither model knows what a message is *for*.
 
-Retrain with: python update_model.py
+## What it found
 
-The script trains on the original training data plus feedback, then scores both the current and the new model on the same held-out test set. The new model replaces the current one only if its spam F1 does not drop (`--force` overrides this). The previous model is kept in `models/previous/`.
+**The model learned a shortcut.** Two of its strongest signs that a message is *not* spam are the fragments *lt* and *gt*. They come from `&lt;#&gt;`, a placeholder the dataset's creators used to hide numbers, which appears in 214 normal messages and in no spam. It is useless outside this dataset, and only inspecting the model's weights revealed it.
 
-Feedback comes from anonymous users, so review `feedback_data.csv` before retraining. Someone could deliberately submit wrong labels.
+<img src="docs/images/report-words.png" alt="Bar chart of the ten words pushing hardest towards spam (claim, prize, tone, 150p, rington and others) and towards not spam, with lt and gt the strongest not-spam signals, followed by a note explaining the placeholder shortcut" width="640">
 
-# Model Performance
-Results on a held-out test set of 1,032 messages (20% of 5,158 unique messages), with a 0.5 spam threshold:
+**Disguised spelling beats a word model.** Every test spam message was rewritten automatically ("I N F O R M A T I O N", "P.R.I.Z.E") and re-scored. The word model's catch rate fell from 89% to 78%, while the letter-pattern model still caught 86%.
 
-| Metric | Word model (main verdict) | Letter-pattern model (second opinion) |
+<img src="docs/images/report-disguised.png" alt="A disguised spam message followed by a table comparing the two models: spam F1 93.1% vs 96.8%, real messages flagged 3 vs 0 of 904, disguised spam caught 78% vs 86%" width="640">
+
+## Results
+
+On 1,032 messages the models never saw during training, at a 50% threshold:
+
+| | Word model (main verdict) | Letter-pattern model (second opinion) |
 |---|---|---|
-| Spam precision | 97.4% | 100% |
-| Spam recall | 89.1% | 93.8% |
+| Spam caught (recall) | 89.1% (114 of 128) | 93.8% (120 of 128) |
+| Right when it says spam (precision) | 97.4% | 100% |
 | Spam F1 | 93.1% | 96.8% |
+| Real messages wrongly flagged | 3 of 904 | 0 of 904 |
 | Accuracy | 98.4% | 99.2% |
 | Disguised spam caught | 78% | 86% |
 
-For the word model: out of 128 spam messages in the test set, 114 were caught and 14 were missed. Out of 904 normal messages, 3 were wrongly flagged as spam.
+The letter-pattern model is more accurate, so why isn't it the main detector? Its reasons are letter fragments like "ze!", which explain nothing to a person. The word model gives the verdict you can read, and the letter-pattern model is shown alongside as a second opinion.
 
-"Disguised spam" is every test spam message rewritten automatically with look-alike numbers and broken-up words ("fr33", "c.l.a.i.m"). The letter-pattern model is more accurate, but the word model gives the main verdict because its reasons are words a person can read. The [case study](CASE_STUDY.md) explains the trade-off.
+Accuracy is listed last on purpose: 87% of the messages are not spam, so a model that never flags anything already scores 87%. The app's report page shows how the numbers change as you move the threshold:
 
-Accuracy looks high partly because 87% of messages are not spam: a model that always answered "not spam" would already score 87%. Spam recall and precision are the more useful numbers. The current figures are always in `models/metrics.json`.
+<img src="docs/images/report-scores.png" alt="Report page: 114 of 128 spam caught, 14 missed, 3 of 904 real messages flagged, 97% right when it says spam, above histograms showing almost all spam scored near 100% and almost all normal messages near 0%" width="640">
+
+## How it works
+
+```mermaid
+flowchart LR
+    M[Message] --> W[Word model<br/>TF-IDF on stemmed words and word pairs<br/>+ Naive Bayes]
+    M --> C[Letter-pattern model<br/>TF-IDF on 2-5 letter fragments<br/>+ Logistic Regression]
+    W --> V[Verdict + highlighted words]
+    C --> S[Second opinion]
+```
+
+- **Data:** the [UCI SMS Spam Collection](https://archive.ics.uci.edu/dataset/228/sms+spam+collection), with 414 duplicate messages removed before splitting, so no message appears in both training and test data.
+- **Model choice:** each model's classifier (Naive Bayes or Logistic Regression) is picked by 5-fold cross-validation on the training data only. The test set is used once, for the final numbers.
+- **Probabilities:** both models are calibrated, so "70% spam" means roughly that.
+- **Explanations:** a word's highlight is its TF-IDF weight times how strongly the model links it to spam.
+- **Feedback and retraining:** users can mark a verdict right or wrong. `update_model.py` retrains on that feedback and only replaces the live model if it scores at least as well on the same test set.
+
+## Known limits
+
+- **It learned from UK text messages from around 2011.** Modern scams, like parcel-delivery texts with short links, score under 1%. Despite the repository's name, it hasn't been tested on email.
+- **It reads words, not intent.** A scam reworded to sound friendly gets through both models.
+- **Feedback on the live app doesn't last.** Streamlit Cloud wipes its files when the app restarts, so feedback is only kept when you run the app yourself.
+
+## Run it yourself
+
+```bash
+git clone https://github.com/Getrudetrudy01/Email-spam-detector-using-machine-learning-model.git
+cd Email-spam-detector-using-machine-learning-model
+python -m venv .venv
+.venv\Scripts\activate          # macOS/Linux: source .venv/bin/activate
+pip install -r requirements.txt
+streamlit run streamlit_app.py
+```
+
+Trained models are included. To retrain them and print the results above, run `python train_model.py`. To run the 23 tests or the exploration notebook, install `requirements-dev.txt` and run `pytest`.
+
+Versions are pinned in `requirements.txt` because a saved scikit-learn model is only guaranteed to load with the version that trained it. If you upgrade scikit-learn, retrain.
+
+**Retraining with feedback:** feedback is saved to `feedback_data.csv`, which is kept out of git because it contains what people typed. Read it before running `python update_model.py`, since anyone can submit a wrong label on purpose. Use `--force` to replace the model even if it scores worse; the previous model is kept in `models/previous/`.
+
+## Project structure
+
+| File | Purpose |
+|---|---|
+| `streamlit_app.py` | App entry point and navigation |
+| `views/check_message.py` | Check a message and see why |
+| `views/fool_it.py` | The *Try to fool it* challenge |
+| `views/model_report.py` | Test results, top words, disguised spam and every mistake |
+| `app_ui.py` | Shared app pieces: model loading, threshold slider, highlighting, styles |
+| `spam_core.py` | Data loading, preprocessing, models, metrics, disguising and feedback |
+| `train_model.py` | Trains both models and saves their metrics |
+| `update_model.py` | Retrains the word model with feedback, only replacing it if it isn't worse |
+| `models/` | Both trained models and `metrics.json` |
+| `spam.ipynb` | Original exploration, comparing 11 classifiers |
+| `tests/` | Tests for the core code and each app page |
+| `CASE_STUDY.md` | The audit, the fixes and the findings |
+
+## Credits
+
+Dataset: T. A. Almeida, J. M. Gómez Hidalgo and A. Yamakami, *Contributions to the Study of SMS Spam Filtering: New Collection and Results*, ACM DocEng 2011, via the [UCI Machine Learning Repository](https://archive.ics.uci.edu/dataset/228/sms+spam+collection).
+
+Built by [Getrude Makumator](https://github.com/Getrudetrudy01).
